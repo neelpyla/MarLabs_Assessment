@@ -1,0 +1,6 @@
+target/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+MLab_GenAI_Spring_Boot_Candidate_Assessment.pdf
