@@ -1,0 +1,29 @@
+server:
+  port: ${SERVER_PORT:8090}
+
+spring:
+  application:
+    name: policy-mcp-server
+  ai:
+    mcp:
+      server:
+        name: policy-search
+        version: 1.0.0
+        type: SYNC
+        protocol: STREAMABLE
+        instructions: Search for approved policy evidence using the supplied trusted caller context.
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      embedding:
+        options:
+          model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
+    vectorstore:
+      qdrant:
+        host: ${QDRANT_HOST:localhost}
+        port: ${QDRANT_GRPC_PORT:6334}
+        collection-name: ${QDRANT_COLLECTION:employee-policies}
+        initialize-schema: true
+
+logging:
+  level:
+    org.springframework.ai: INFO

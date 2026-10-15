@@ -1,0 +1,23 @@
+server:
+  port: ${SERVER_PORT:8089}
+
+spring:
+  application:
+    name: rag-api
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        options:
+          model: ${OLLAMA_CHAT_MODEL:qwen2.5:3b}
+          temperature: 0.1
+          num-ctx: 2048
+          num-predict: 64
+    mcp:
+      client:
+        type: SYNC
+        request-timeout: 30s
+        streamable-http:
+          connections:
+            policy-search:
+              url: ${MCP_SERVER_URL:http://localhost:8090}

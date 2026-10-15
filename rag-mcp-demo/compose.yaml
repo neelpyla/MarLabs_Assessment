@@ -1,0 +1,103 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    pull_policy: always
+    container_name: rag-mcp-ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  ollama-models:
+    image: ollama/ollama:latest
+    pull_policy: always
+    container_name: rag-mcp-models
+    network_mode: service:ollama
+    volumes:
+      - ollama-data:/root/.ollama
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if ! OLLAMA_HOST=http://localhost:11434 ollama show qwen2.5:3b >/dev/null 2>&1; then
+          until OLLAMA_HOST=http://localhost:11434 ollama pull qwen2.5:3b; do
+            echo "Failed to pull qwen2.5:3b; retrying in 10 seconds..." >&2
+            sleep 10
+          done
+        fi
+        if ! OLLAMA_HOST=http://localhost:11434 ollama show nomic-embed-text >/dev/null 2>&1; then
+          until OLLAMA_HOST=http://localhost:11434 ollama pull nomic-embed-text; do
+            echo "Failed to pull nomic-embed-text; retrying in 10 seconds..." >&2
+            sleep 10
+          done
+        fi
+    restart: "no"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    pull_policy: always
+    container_name: rag-mcp-qdrant
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/6333'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: mcp-server/Dockerfile
+    container_name: rag-mcp-server
+    network_mode: host
+    environment:
+      SERVER_PORT: 8090
+      SERVER_ADDRESS: 127.0.0.1
+      OLLAMA_BASE_URL: http://127.0.0.1:11434
+      QDRANT_HOST: 127.0.0.1
+      QDRANT_GRPC_PORT: 6334
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      ollama-models:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8090'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: rag-mcp-api
+    network_mode: host
+    environment:
+      SERVER_PORT: 8089
+      SERVER_ADDRESS: 127.0.0.1
+      OLLAMA_BASE_URL: http://127.0.0.1:11434
+      MCP_SERVER_URL: http://127.0.0.1:8090
+    depends_on:
+      ollama-models:
+        condition: service_completed_successfully
+      mcp-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ollama-data:
+  qdrant-data:
